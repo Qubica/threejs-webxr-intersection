@@ -16,6 +16,7 @@
 
 			import * as THREE from './build/three.module.js';
 			import { ARButton } from './examples/jsm/webxr/ARButton.js';
+			import { FBXLoader } from './examples/jsm/loaders/FBXLoader.js';
 
 			var container;
 			var camera, scene, renderer;
@@ -39,29 +40,34 @@
 
 				scene = new THREE.Scene();
 
-				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 20 );
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 100 );
 
 				var light = new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 1 );
 				light.position.set( 0.5, 1, 0.25 );
 				scene.add( light );
 
-				scene.add( mesh );
-
-				//
-
+		
 				renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				renderer.xr.enabled = true;
 				container.appendChild( renderer.domElement );
 
-				//
-
 				document.body.appendChild( ARButton.createButton( renderer, { requiredFeatures: [ 'hit-test' ] } ) );
 
-				//
-
-				var geometry = new THREE.CylinderBufferGeometry( 0.1, 0.1, 0.2, 32 ).translate( 0, 0.1, 0 );
+				const hotspots = [];
+				const positions = [
+					{x: -0.3, z: 0},
+					{x: 0, z: -0.3},
+					{x: 0.3, z: 0},
+					{x: 0, z: 0.3}
+				];
+				for (let i=0; i<4; i++) {
+					var geometry = new THREE.SphereGeometry( 0.03, 32, 32 );
+					var material = new THREE.MeshBasicMaterial( {color: 0xff0000} );
+					var hotspot = new THREE.Mesh( geometry, material );
+					hotspots.push(hotspot);
+				}
 
 				function onSelect(e) {
 
@@ -72,7 +78,7 @@
 					raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
 					// get the list of objects the ray intersected
-					const intersections = raycaster.intersectObjects(scene.children);
+					const intersections = raycaster.intersectObjects(hotspots);
 					console.log(intersections);
 
 					if (intersections.length) {
@@ -82,12 +88,39 @@
 
 					if ( reticle.visible ) {
 						if (!mesh) {
-							// create mesh
-							material = new THREE.MeshPhongMaterial( { color: 0xffffff * Math.random() } );
-							mesh = new THREE.Mesh( geometry, material );
-							mesh.position.setFromMatrixPosition( reticle.matrix );
-							mesh.scale.y = Math.random() * 2 + 1;
-							scene.add( mesh );
+
+							var loader = new FBXLoader();
+							loader.load( './models/notebook.fbx', function ( object ) {
+
+								mesh = object;
+								mesh.scale.x = 0.001;
+								mesh.scale.y = 0.001;
+								mesh.scale.z = 0.001;
+
+								mesh.rotation.x = 0;
+								mesh.rotation.y = Math.PI/2;
+								mesh.rotation.z = 0;
+
+								mesh.position.setFromMatrixPosition( reticle.matrix );
+								// mesh.position.z = 0.03;
+								mesh.position.y = 0.1;
+
+								mesh.children[0].material[0] = new THREE.MeshPhongMaterial( { color: 0xffFF00 } );
+								mesh.children[0].material[1] = new THREE.MeshPhongMaterial( { color: 0xffFF00 } );
+
+								scene.add( mesh );
+
+								// add hospots
+								for (let i=0; i<hotspots.length; i++) {
+									hotspots[i].position.setFromMatrixPosition( reticle.matrix );
+									hotspots[i].position.x += positions[i].x;
+									hotspots[i].position.y = 0.1;
+									hotspots[i].position.z += positions[i].z;
+									scene.add(hotspots[i]);
+								}
+
+							} );
+							
 						}
 					}
 
@@ -129,6 +162,10 @@
 			}
 
 			function render( timestamp, frame ) {
+	
+				// if (mesh) {
+				// 	mesh.rotation.y += 0.01;
+				// }
 
 				if ( frame ) {
 
